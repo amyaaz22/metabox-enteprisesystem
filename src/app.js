@@ -6,6 +6,9 @@
 //   GET  /receipts/:saleKey       the receipt as it prints                  (admin key)
 //   GET  /jobs                    print jobs and their state                (admin key)
 //   POST /jobs/:id/reprint        put a job back in the printer queue       (admin key)
+//   POST /agent/next              print agent: take the next job for a printer (admin key)
+//   POST /agent/done              print agent: report printed / failed       (admin key)
+//   GET  /agent/fiscal-print-agent.ps1  download the Windows print agent
 //   GET  /selftest                end-to-end check of this deployment       (admin key)
 //   GET  /health
 
@@ -17,6 +20,8 @@ import { handleSdp } from './epsonSdp.js';
 import { PayloadError } from './zoho.js';
 import { money } from './receipt.js';
 import { runSelftest } from './selftest.js';
+import { readFileSync } from 'node:fs';
+import { renderEscpos } from './render/escpos.js';
 
 const MAX_BODY = 1024 * 1024;
 
@@ -120,6 +125,31 @@ export function createHandler({ cfg = config, fiscal, store, log = console.log }
       if (req.method === 'POST' && url.pathname === '/epson/sdp') {
         const out = await handleSdp(new URLSearchParams(await readBody(req)), queue, log);
         return send(out.status, out.body, out.type);
+      }
+
+      if (req.method === 'GET' && url.pathname === '/agent/fiscal-print-agent.ps1') {
+        const script = readFileSync(new URL('../agent/fiscal-print-agent.ps1', import.meta.url), 'utf8');
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': 'attachment; filename="fiscal-print-agent.ps1"' });
+        return res.end(script);
+      }
+
+      if (req.method === 'POST' && url.pathname.startsWith('/agent/')) {
+        if (!isAdmin()) return send(401, { error: 'bad admin key' });
+        const body = JSON.parse((await readBody(req)) || '{}');
+        if (url.pathname === '/agent/next') {
+          if (!body.printer) return send(400, { error: 'printer required' });
+          const job = await queue.next(String(body.printer));
+          if (!job) return send(200, { job: null });
+          log(`agent: sent job ${job.id} (${job.number}) to ${body.printer}`);
+          // Jobs queued before ESC/POS output existed are rebuilt from the sale.
+          const data = job.escpos || renderEscpos((await pipeline.getSale(job.saleKey))?.rows || []).toString('base64');
+          return send(200, { job: { id: job.id, number: job.number, data } });
+        }
+        if (url.pathname === '/agent/done') {
+          const job = await queue.complete(String(body.jobId), Boolean(body.ok), String(body.detail || ''));
+          log(`agent: job ${body.jobId} ${body.ok ? 'printed' : `failed (${body.detail})`}`);
+          return job ? send(200, { id: job.id, state: job.state }) : send(404, { error: 'no such job' });
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/selftest') {

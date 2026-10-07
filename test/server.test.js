@@ -46,3 +46,26 @@ test('selftest runs the whole flow against the running server', async () => {
     server.close();
   }
 });
+
+test('print agent takes ESC/POS jobs once and reports back', async () => {
+  const { server } = createServer({ fiscal: createFiscalClient({ mode: 'mock' }), log: () => {} });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const admin = { 'content-type': 'application/json', 'x-admin-key': config.adminKey };
+  const post = (path, body, headers = admin) => fetch(`${base}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+  try {
+    await fetch(`${base}/webhooks/zoho-pos`, { method: 'POST', headers: { 'content-type': 'application/json', [config.webhookSecretHeader]: config.webhookSecret }, body: raw });
+    assert.equal((await post('/agent/next', { printer: 'HEAD-OFFICE-TILL-1' }, { 'content-type': 'application/json' })).status, 401);
+    const { job } = await (await post('/agent/next', { printer: 'HEAD-OFFICE-TILL-1' })).json();
+    const bytes = Buffer.from(job.data, 'base64');
+    assert.deepEqual([...bytes.subarray(0, 2)], [0x1b, 0x40], 'starts with ESC @');
+    assert.ok(bytes.includes(Buffer.from([0x1d, 0x28, 0x6b])), 'contains a QR command');
+    assert.ok(bytes.toString('latin1').includes('Chicken & Mushroom Quiche'));
+    assert.equal((await (await post('/agent/next', { printer: 'HEAD-OFFICE-TILL-1' })).json()).job, null);
+    assert.equal((await (await post('/agent/done', { jobId: job.id, ok: true })).json()).state, 'printed');
+    const script = await fetch(`${base}/agent/fiscal-print-agent.ps1`).then((r) => r.text());
+    assert.match(script, /RawPrinter/);
+  } finally {
+    server.close();
+  }
+});

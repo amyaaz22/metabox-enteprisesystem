@@ -7,6 +7,7 @@ import { normalizeSale } from './zoho.js';
 import { buildReceipt } from './receipt.js';
 import { renderEpos } from './render/epos.js';
 import { renderHtml } from './render/html.js';
+import { renderEscpos } from './render/escpos.js';
 import { NOT_FISCALIZED } from './fiscal.js';
 import { readJson } from './store.js';
 
@@ -33,7 +34,12 @@ export function createPipeline({ fiscal, queue, store, cfg = config, now = Date.
       const fiscalResult = await fiscal.fiscalize(sale);
       const rows = buildReceipt(sale, fiscalResult, cfg.seller);
       const printerId = printerFor(sale);
-      const job = await queue.enqueue(printerId, { saleKey: key, number: sale.number, epos: renderEpos(rows) });
+      const job = await queue.enqueue(printerId, {
+        saleKey: key,
+        number: sale.number,
+        epos: renderEpos(rows),
+        escpos: renderEscpos(rows).toString('base64'),
+      });
       await store.write(`receipts/${key}.html`, await renderHtml(rows, `${sale.number} receipt`));
 
       const zohoCreatedAt = parseZohoTime(sale.createdTime);
