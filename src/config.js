@@ -32,6 +32,9 @@ export const config = {
   // it polls Server Direct Print).
   printerByLocation: {
     '1496042000000095116': 'HEAD-OFFICE-TILL-1',
+    // /selftest sales go to a printer that doesn't exist, so they never
+    // take a real till's place in the queue.
+    SELFTEST: 'SELFTEST-PRINTER',
   },
   defaultPrinter: 'HEAD-OFFICE-TILL-1',
 };

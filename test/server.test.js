@@ -30,3 +30,19 @@ test('webhook endpoint checks the secret and rejects bad payloads', async () => 
     server.close();
   }
 });
+
+test('selftest runs the whole flow against the running server', async () => {
+  const { server } = createServer({ fiscal: createFiscalClient({ mode: 'mock' }), log: () => {} });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    assert.equal((await fetch(`${base}/selftest`)).status, 401);
+    const report = await fetch(`${base}/selftest?key=${config.adminKey}`).then((r) => r.json());
+    assert.equal(report.ok, true, JSON.stringify(report.steps));
+    assert.equal(report.fiscal, 'FISCALIZED');
+    assert.equal(report.qrOnReceipt, true);
+    assert.equal(report.steps.length, 6);
+  } finally {
+    server.close();
+  }
+});

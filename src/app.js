@@ -6,6 +6,7 @@
 //   GET  /receipts/:saleKey       the receipt as it prints                  (admin key)
 //   GET  /jobs                    print jobs and their state                (admin key)
 //   POST /jobs/:id/reprint        put a job back in the printer queue       (admin key)
+//   GET  /selftest                end-to-end check of this deployment       (admin key)
 //   GET  /health
 
 import { timingSafeEqual } from 'node:crypto';
@@ -15,6 +16,7 @@ import { createPipeline } from './pipeline.js';
 import { handleSdp } from './epsonSdp.js';
 import { PayloadError } from './zoho.js';
 import { money } from './receipt.js';
+import { runSelftest } from './selftest.js';
 
 const MAX_BODY = 1024 * 1024;
 
@@ -118,6 +120,12 @@ export function createHandler({ cfg = config, fiscal, store, log = console.log }
       if (req.method === 'POST' && url.pathname === '/epson/sdp') {
         const out = await handleSdp(new URLSearchParams(await readBody(req)), queue, log);
         return send(out.status, out.body, out.type);
+      }
+
+      if (req.method === 'GET' && url.pathname === '/selftest') {
+        if (!isAdmin()) return send(401, { error: 'bad admin key' });
+        const proto = req.headers['x-forwarded-proto'] || 'http';
+        return send(200, await runSelftest(`${proto}://${req.headers.host}`, cfg));
       }
 
       if (url.pathname.startsWith('/receipts') || url.pathname.startsWith('/jobs')) {
