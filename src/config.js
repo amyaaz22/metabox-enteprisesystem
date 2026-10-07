@@ -8,6 +8,9 @@ export const config = {
   webhookSecret: process.env.ZOHO_WEBHOOK_SECRET || 'dev-secret',
   webhookSecretHeader: 'x-fiscal-secret',
 
+  // For the /receipts and /jobs pages: header x-admin-key or ?key=...
+  adminKey: process.env.ADMIN_KEY || 'dev-admin',
+
   // 'mock' for the desk test; 'http' to call the real e-invoicing service.
   fiscalMode: process.env.FISCAL_MODE || 'mock',
   fiscalBaseUrl: process.env.FISCAL_BASE_URL || '',

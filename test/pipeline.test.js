@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import { normalizeSale, PayloadError } from '../src/zoho.js';
 import { createFiscalClient, FISCALIZED, NOT_FISCALIZED } from '../src/fiscal.js';
 import { createQueue } from '../src/queue.js';
+import { createMemoryStore } from '../src/store.js';
 import { createPipeline } from '../src/pipeline.js';
 import { buildReceipt, money } from '../src/receipt.js';
 import { renderText, WIDTH } from '../src/render/text.js';
 import { renderEpos } from '../src/render/epos.js';
 import { handleSdp } from '../src/epsonSdp.js';
-import { parseZohoBody } from '../src/server.js';
+import { parseZohoBody } from '../src/app.js';
 import { config } from '../src/config.js';
 
 const raw = JSON.parse(readFileSync(new URL('./fixtures/raw.json', import.meta.url), 'utf8'));
@@ -78,26 +79,42 @@ test('Epson XML escapes item names and includes the QR symbol', async () => {
 });
 
 test('duplicate webhook prints once; printer gets each job once', async () => {
-  const queue = createQueue();
-  const pipeline = createPipeline({ fiscal: createFiscalClient({ mode: 'mock' }), queue });
+  const store = createMemoryStore();
+  const queue = createQueue(store);
+  const pipeline = createPipeline({ fiscal: createFiscalClient({ mode: 'mock' }), queue, store, now: () => Date.parse('2026-10-07T12:23:57+04:00') });
   const first = await pipeline.handle(raw);
   const again = await pipeline.handle(raw);
   assert.equal(again.duplicate, true);
-  assert.equal(queue.list().length, 1);
+  assert.equal(again.jobId, first.jobId);
+  assert.equal((await queue.list()).length, 1);
   assert.equal(first.printerId, 'HEAD-OFFICE-TILL-1');
+  assert.equal(first.zohoToServiceMs, 3000, 'webhook delay measured from Zoho created_time');
+  assert.match(await pipeline.getReceiptHtml(first.saleKey), /SI-11/);
 
   const poll = new URLSearchParams({ ConnectionType: 'GetRequest', ID: 'HEAD-OFFICE-TILL-1' });
-  const got = handleSdp(poll, queue);
+  const got = await handleSdp(poll, queue);
   assert.match(got.body, new RegExp(`<printjobid>${first.jobId}</printjobid>`));
-  assert.equal(handleSdp(poll, queue).body, '', 'second poll must not resend');
-  assert.equal(handleSdp(new URLSearchParams({ ConnectionType: 'GetRequest', ID: 'OTHER' }), queue).body, '');
+  assert.equal((await handleSdp(poll, queue)).body, '', 'second poll must not resend');
+  assert.equal((await handleSdp(new URLSearchParams({ ConnectionType: 'GetRequest', ID: 'OTHER' }), queue)).body, '');
 
   const ack = `<PrintResponseInfo><ePOSPrint><Parameter><printjobid>${first.jobId}</printjobid></Parameter><PrintResponse><response success="false" code="EPTR_COVER_OPEN"/></PrintResponse></ePOSPrint></PrintResponseInfo>`;
-  handleSdp(new URLSearchParams({ ConnectionType: 'SetResponse', ID: 'HEAD-OFFICE-TILL-1', ResponseFile: ack }), queue);
-  assert.equal(queue.get(first.jobId).state, 'failed');
-  assert.equal(queue.get(first.jobId).detail, 'EPTR_COVER_OPEN');
-  queue.requeue(first.jobId);
-  assert.match(handleSdp(poll, queue).body, new RegExp(first.jobId), 'reprint goes back to the printer');
+  await handleSdp(new URLSearchParams({ ConnectionType: 'SetResponse', ID: 'HEAD-OFFICE-TILL-1', ResponseFile: ack }), queue);
+  assert.equal((await queue.get(first.jobId)).state, 'failed');
+  assert.equal((await queue.get(first.jobId)).detail, 'EPTR_COVER_OPEN');
+  await queue.requeue(first.jobId);
+  assert.match((await handleSdp(poll, queue)).body, new RegExp(first.jobId), 'reprint goes back to the printer');
+});
+
+test('a failure after claiming the sale releases it so a Zoho retry can succeed', async () => {
+  const store = createMemoryStore();
+  const queue = createQueue(store);
+  let calls = 0;
+  const flaky = { async fiscalize(sale) { if (++calls === 1) throw new Error('boom'); return createFiscalClient({ mode: 'mock' }).fiscalize(sale); } };
+  const pipeline = createPipeline({ fiscal: flaky, queue, store });
+  await assert.rejects(pipeline.handle(raw), /boom/);
+  const retry = await pipeline.handle(raw);
+  assert.equal(retry.duplicate, undefined);
+  assert.equal(retry.fiscal.status, FISCALIZED);
 });
 
 test('accepts Zoho webhook bodies as JSON or form-encoded', () => {

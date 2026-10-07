@@ -35,7 +35,7 @@ async function scenario(label, payload, fail) {
   await fetch(`${base}/epson/sdp`, { method: 'POST', body: new URLSearchParams({ ConnectionType: 'SetResponse', ID: config.defaultPrinter, ResponseFile: ack }) });
   const elapsed = Date.now() - t0;
 
-  const result = pipeline.find(hook.number);
+  const result = await pipeline.getSale(`INV-${payload.invoice_id}`);
   const name = `out/${hook.number}-${fail ? 'not-fiscalized' : 'fiscalized'}`;
   await writeFile(`${name}.txt`, renderText(result.rows));
   await writeFile(`${name}.html`, await renderHtml(result.rows, `${hook.number} receipt`));

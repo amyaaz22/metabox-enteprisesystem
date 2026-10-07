@@ -19,6 +19,13 @@ test('webhook endpoint checks the secret and rejects bad payloads', async () => 
     const ok = await fetch(url, { method: 'POST', headers, body: raw });
     assert.equal(ok.status, 200);
     assert.equal((await ok.json()).fiscal, 'FISCALIZED');
+    const base = url.replace('/webhooks/zoho-pos', '');
+    assert.equal((await fetch(`${base}/receipts`)).status, 401);
+    const page = await fetch(`${base}/receipts?key=${config.adminKey}`).then((r) => r.text());
+    assert.match(page, /SI-11/);
+    assert.match(page, /FISCALIZED/);
+    const receipt = await fetch(`${base}/receipts/INV-1496042000000111585?key=${config.adminKey}`).then((r) => r.text());
+    assert.match(receipt, /MRA e-Invoice/);
   } finally {
     server.close();
   }

@@ -17,12 +17,12 @@ ${job.epos}
 </ePOSPrint>
 </PrintRequestInfo>`;
 
-export function handleSdp(form, queue, log = () => {}) {
+export async function handleSdp(form, queue, log = () => {}) {
   const printerId = form.get('ID') || '';
   const type = form.get('ConnectionType');
 
   if (type === 'GetRequest') {
-    const job = queue.next(printerId);
+    const job = await queue.next(printerId);
     if (!job) return { status: 200, type: 'text/xml; charset=utf-8', body: '' };
     log(`sdp: sent job ${job.id} (${job.number}) to ${printerId}`);
     return { status: 200, type: 'text/xml; charset=utf-8', body: wrapJob(job) };
@@ -35,7 +35,7 @@ export function handleSdp(form, queue, log = () => {}) {
       if (!jobId) continue;
       const ok = /<response[^>]*success="true"/.test(block);
       const code = /<response[^>]*code="([^"]*)"/.exec(block)?.[1] || '';
-      queue.complete(jobId, ok, code);
+      await queue.complete(jobId, ok, code);
       log(`sdp: job ${jobId} ${ok ? 'printed' : `failed (${code})`} on ${printerId}`);
     }
     return { status: 200, type: 'text/plain', body: '' };

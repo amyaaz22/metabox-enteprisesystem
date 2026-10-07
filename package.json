@@ -4,13 +4,16 @@
   "private": true,
   "description": "Receives Zoho POS sales, fiscalizes them with MRA via the e-invoicing service, and prints the compliant receipt on cloud receipt printers.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
     "desk-test": "node scripts/desk-test.js"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.1",
     "qrcode": "^1.5.4"
   }
 }
