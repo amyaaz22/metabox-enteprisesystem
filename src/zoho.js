@@ -17,7 +17,19 @@ function parseNested(value, fallback) {
   }
 }
 
-export function normalizeSale(payload) {
+// Zoho's current default webhook payload wraps the record:
+// {"invoice": {...}} or {"creditnote": {...}}. Older payloads are flat.
+export function unwrap(payload) {
+  for (const k of ['invoice', 'creditnote']) {
+    const inner = payload?.[k];
+    if (inner && typeof inner === 'object' && !Array.isArray(inner)) return inner;
+    if (typeof inner === 'string' && inner.trim().startsWith('{')) return JSON.parse(inner);
+  }
+  return payload;
+}
+
+export function normalizeSale(input) {
+  const payload = unwrap(input);
   const isCreditNote = Boolean(payload.creditnote_id);
   const id = isCreditNote ? payload.creditnote_id : payload.invoice_id;
   const number = isCreditNote ? payload.creditnote_number : payload.invoice_number;

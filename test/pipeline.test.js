@@ -30,6 +30,17 @@ test('normalizes the Zoho POS payload, including JSON-string fields', () => {
   assert.deepEqual(sale.taxSummary, [{ name: 'Standard Rate (15%)', percent: 15, taxableCents: 57100, taxCents: 8565 }]);
 });
 
+test('reads the current default payload: wrapped record with real arrays and numbers', () => {
+  const inner = { ...raw, line_items: JSON.parse(raw.line_items), billing_address: JSON.parse(raw.billing_address),
+    custom_fields: [], total: 656.65, sub_total: 571, tax_total: 85.65 };
+  const sale = normalizeSale({ invoice: inner });
+  assert.equal(sale.number, 'SI-11');
+  assert.equal(sale.totalCents, 65665);
+  assert.equal(sale.lines.length, 5);
+  const { invoice_id, invoice_number, ...rest } = inner;
+  assert.equal(normalizeSale({ creditnote: { ...rest, creditnote_id: '7', creditnote_number: 'CN-7' } }).type, 'CRN');
+});
+
 test('rejects a payload whose totals do not add up', () => {
   assert.throws(() => normalizeSale({ ...raw, total: '700.00' }), PayloadError);
   assert.throws(() => normalizeSale({ ...raw, tax_total: '80.00' }), PayloadError);

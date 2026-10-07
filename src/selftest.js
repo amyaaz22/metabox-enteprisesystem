@@ -38,7 +38,7 @@ export async function runSelftest(origin, cfg) {
       return 401;
     });
     const hook = await step('webhook: sale received, fiscalized, queued', async () => {
-      const r = await post('/webhooks/zoho-pos', JSON.stringify(payload), webhookHeaders);
+      const r = await post('/webhooks/zoho-pos', JSON.stringify({ invoice: payload }), webhookHeaders);
       const body = await r.json();
       if (r.status !== 200 || !body.jobId) throw new Error(`HTTP ${r.status}: ${JSON.stringify(body)}`);
       return body;
