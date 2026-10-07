@@ -1,0 +1,16 @@
+{
+  "name": "zoho-pos-fiscal-print",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Receives Zoho POS sales, fiscalizes them with MRA via the e-invoicing service, and prints the compliant receipt on cloud receipt printers.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "desk-test": "node scripts/desk-test.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}
