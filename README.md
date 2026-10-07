@@ -46,13 +46,23 @@ Epson XML. Rendered samples: [fiscalized](docs/samples/SI-11-fiscalized.png),
 |---|---|---|
 | POST | `/webhooks/zoho-pos` | Zoho POS webhook. Needs header `x-fiscal-secret` |
 | POST | `/epson/sdp` | Printer polling (set as the Server Direct Print URL on the printer) |
-| GET | `/jobs` | Job states (secret header) |
-| POST | `/jobs/:id/reprint` | Reprint (secret header) |
+| GET | `/receipts?key=` | Sales received, webhook delay, print timings, receipt previews |
+| GET | `/selftest?key=` | End-to-end check of the running deployment |
+| GET | `/jobs` | Job states (admin key) |
+| POST | `/jobs/:id/reprint` | Reprint (admin key) |
 | GET | `/health` | |
+
+## Deployment
+
+Vercel project `zoho-pos-fiscal-print`, built from this branch, live at
+https://zoho-pos-fiscal-print.vercel.app (function region iad1, private Blob
+store `zoho-pos-fiscal-print`). Secrets are project environment variables.
+Fiscalization is `mock` until the e-invoicing API is wired in. Vercel Hobby is
+for non-commercial use: move to Pro or the e-invoicing server before the pilot.
 
 ## Environment
 
-`PORT`, `ZOHO_WEBHOOK_SECRET`, `FISCAL_MODE` (`mock`/`http`), `FISCAL_BASE_URL`,
+`PORT`, `ZOHO_WEBHOOK_SECRET`, `ADMIN_KEY`, `BLOB_READ_WRITE_TOKEN`, `FISCAL_MODE` (`mock`/`http`), `FISCAL_BASE_URL`,
 `FISCAL_API_KEY`, `FISCAL_TIMEOUT_MS`, `SELLER_NAME`, `SELLER_BRN`, `SELLER_VAT`,
 `SELLER_ADDRESS`, `SELLER_PHONE`.
 

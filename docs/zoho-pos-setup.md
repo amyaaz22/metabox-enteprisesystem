@@ -32,6 +32,22 @@
 4. **Retail Billing App**: turn off automatic receipt printing on every
    device so only the fiscal receipt prints.
 
+## Zoho Books
+
+Receipt printing is triggered from **Zoho POS, not Books**: the POS webhook
+fires at the sale, while the POS-to-Books sync can lag. Books still matters:
+
+1. **Double fiscalization.** POS sales land in Books. If the e-invoicing
+   extension is also active on Books for this org, it will submit those
+   sales to MRA a second time. Check where SI-11 appears in Books and whether
+   the Books extension fiscalized it. Then exclude POS-origin invoices there,
+   e.g. by number series, or skip any invoice that already has an IRN.
+2. **IRN on the Books record.** For audit, write the IRN and fiscal status
+   back to the Books invoice (custom fields "MRA IRN" and "MRA Status") via the Books API.
+   Not built yet; needs a Books OAuth client.
+3. **Invoices raised in Books** (B2B, credit sales) keep the existing Books
+   e-invoicing integration and editable Books templates. Nothing changes.
+
 ## Printer setup (Epson TM-m30III / TM-T88VII)
 
 1. Connect to the shop LAN/Wi-Fi. Open the printer's web config.
